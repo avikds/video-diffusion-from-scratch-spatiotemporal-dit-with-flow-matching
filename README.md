@@ -25,6 +25,7 @@ python scaffold.py
 - [x] **13.** VideoDiT
 - [x] **14.** sample_timesteps
 - [x] **15.** flow_interpolant
+- [x] **16.** flow_matching_loss
 
 ---
 

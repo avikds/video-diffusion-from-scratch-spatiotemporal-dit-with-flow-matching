@@ -674,3 +674,15 @@ def flow_interpolant(x1, x0, t):
 
     return x_t, v
 
+# Step 16 - flow_matching_loss
+def flow_matching_loss(model, x1, y, t, x0, gen=None):
+    # Construct the interpolated video and its target velocity.
+    x_t, v = flow_interpolant(x1, x0, t)
+
+    # Predict the velocity, forwarding the generator to make label
+    # dropout reproducible when the model is in training mode.
+    prediction = model(x_t, t, y, gen)
+
+    # Compute the mean squared error over all batch and video elements.
+    return F.mse_loss(prediction, v)
+
