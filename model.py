@@ -754,3 +754,28 @@ def train_video_dit(
 
     return losses
 
+# Step 19 - cfg_velocity
+@torch.no_grad()
+def cfg_velocity(model, x, t, y, scale):
+    # At guidance scale 1, return the conditional prediction directly.
+    if scale == 1.0:
+        return model(x, t, y)
+
+    # Create null-class labels for unconditional generation.
+    null = torch.full_like(y, model.y_emb.num_classes)
+
+    # Double the batch so conditional and unconditional predictions
+    # can be computed in a single model forward pass.
+    x_in = torch.cat([x, x], dim=0)
+    t_in = torch.cat([t, t], dim=0)
+    y_in = torch.cat([y, null], dim=0)
+
+    # Compute both predictions together.
+    predictions = model(x_in, t_in, y_in)
+
+    # The first half is conditional; the second half is unconditional.
+    v_cond, v_uncond = predictions.chunk(2, dim=0)
+
+    # Apply classifier-free guidance.
+    return v_uncond + scale * (v_cond - v_uncond)
+
