@@ -197,3 +197,60 @@ def unpatchify(tokens, T, H, W, p, C):
 
     return video
 
+# Step 5 - pos_embed
+import math
+
+
+def sincos_1d(positions, dim):
+    # Number of sine/cosine frequency pairs.
+    half = dim // 2
+
+    # Compute frequencies: omega_k = 10000 ** (-k / half).
+    k = torch.arange(
+        half,
+        dtype=torch.float32,
+        device=positions.device
+    )
+    omega = torch.exp(-k * math.log(10000.0) / half)
+
+    # Compute the position-frequency products using broadcasting.
+    positions = positions.to(dtype=torch.float32).reshape(-1, 1)
+    angles = positions * omega.unsqueeze(0)
+
+    # Concatenate all sine features followed by all cosine features.
+    return torch.cat(
+        [torch.sin(angles), torch.cos(angles)],
+        dim=1
+    )
+
+
+def pos_embed(T, Hp, Wp, d):
+    # Generate position indices for frames, patch rows, and patch columns.
+    frame_positions = torch.arange(T)
+    row_positions = torch.arange(Hp)
+    col_positions = torch.arange(Wp)
+
+    # Encode each frame's temporal position.
+    temporal = sincos_1d(frame_positions, d)  # (T, d)
+
+    # Encode patch-row and patch-column positions independently.
+    row_embed = sincos_1d(row_positions, d // 2)  # (Hp, d // 2)
+    col_embed = sincos_1d(col_positions, d // 2)  # (Wp, d // 2)
+
+    # Broadcast row and column embeddings into a spatial grid.
+    # Shape: (Hp, Wp, d)
+    spatial = torch.cat(
+        [
+            row_embed[:, None, :].expand(Hp, Wp, -1),
+            col_embed[None, :, :].expand(Hp, Wp, -1),
+        ],
+        dim=-1
+    )
+
+    # Combine temporal and spatial embeddings through broadcasting.
+    # Shape: (T, Hp, Wp, d)
+    embeddings = temporal[:, None, None, :] + spatial[None, :, :, :]
+
+    # Flatten in frame-major, row-major order to match patchify().
+    return embeddings.reshape(T * Hp * Wp, d)
+

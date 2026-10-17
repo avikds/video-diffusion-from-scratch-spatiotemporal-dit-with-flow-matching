@@ -14,6 +14,7 @@ python scaffold.py
 - [x] **2.** make_batch
 - [x] **3.** clip_velocity
 - [x] **4.** patchify
+- [x] **5.** pos_embed
 
 ---
 
