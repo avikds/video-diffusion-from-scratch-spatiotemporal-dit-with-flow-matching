@@ -863,3 +863,76 @@ def sample_from_first_frame(model, first, y, steps, scale, gen):
 
     return x
 
+# Step 22 - evaluate_samples
+def shape_score(samples):
+    # samples has shape (n, 1, T, H, W).
+    n, _, T, _, _ = samples.shape
+
+    # Handle an empty batch safely.
+    if n == 0 or T == 0:
+        return 0.0
+
+    valid_frames = 0
+    total_frames = n * T
+
+    # Check every frame of every generated clip.
+    for clip in samples:
+        for frame in clip[0]:
+            # Locate all bright pixels in the frame.
+            rows, cols = torch.where(frame > 0)
+
+            # A clean square must contain exactly K*K bright pixels.
+            if rows.numel() != K * K:
+                continue
+
+            # Calculate the bounding-box height and width.
+            box_height = int(rows.max().item() - rows.min().item() + 1)
+            box_width = int(cols.max().item() - cols.min().item() + 1)
+
+            # Count frames whose bright mask forms a clean K x K square.
+            if box_height == K and box_width == K:
+                valid_frames += 1
+
+    return float(valid_frames / total_frames)
+
+
+def evaluate_samples(samples, labels):
+    # Evaluate frame quality independently of motion coherence.
+    shape = shape_score(samples)
+
+    n = samples.shape[0]
+
+    # Handle an empty batch safely.
+    if n == 0:
+        return {
+            "direction_acc": 0.0,
+            "jitter": 0.0,
+            "shape": round(shape, 4),
+        }
+
+    correct_directions = 0
+    total_jitter = 0.0
+
+    # Track the motion of each generated clip from its pixel values.
+    for i in range(n):
+        dx, dy, jitter = clip_velocity(samples[i])
+
+        # Recover the closest direction index from the tracked velocity.
+        predicted_direction = direction_index(dx, dy)
+
+        # Compare the recovered direction with the conditioning label.
+        if predicted_direction == int(labels[i].item()):
+            correct_directions += 1
+
+        total_jitter += jitter
+
+    # Average the metrics across the batch.
+    direction_acc = correct_directions / n
+    mean_jitter = total_jitter / n
+
+    return {
+        "direction_acc": round(float(direction_acc), 4),
+        "jitter": round(float(mean_jitter), 4),
+        "shape": round(float(shape), 4),
+    }
+
