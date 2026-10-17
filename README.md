@@ -19,6 +19,7 @@ python scaffold.py
 - [x] **7.** LabelEmbedder
 - [x] **8.** Attention
 - [x] **9.** attend_spatial
+- [x] **10.** modulate
 
 ---
 

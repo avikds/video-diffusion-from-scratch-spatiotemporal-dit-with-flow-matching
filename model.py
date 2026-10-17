@@ -429,3 +429,39 @@ def attention_cost(T, S):
 
     return (full, factorized)
 
+# Step 10 - modulate
+import torch.nn.functional as F
+
+
+def modulate(x, shift, scale):
+    # x: (B, N, d)
+    # shift, scale: (B, d)
+    # Add a token dimension so conditioning broadcasts across all N tokens.
+    shift = shift.unsqueeze(1)
+    scale = scale.unsqueeze(1)
+
+    # Apply adaptive scale and shift.
+    return x * (1 + scale) + shift
+
+
+class AdaLNModulation(nn.Module):
+    def __init__(self, d, n):
+        super().__init__()
+
+        # Number of conditioning vectors to generate.
+        self.n = n
+
+        # Project conditioning into n separate d-dimensional vectors.
+        self.lin = nn.Linear(d, n * d)
+
+        # Zero-initialize the projection's weight and bias.
+        nn.init.zeros_(self.lin.weight)
+        nn.init.zeros_(self.lin.bias)
+
+    def forward(self, c):
+        # Apply SiLU activation before the conditioning projection.
+        out = self.lin(F.silu(c))
+
+        # Split along the feature dimension into n chunks.
+        return out.chunk(self.n, dim=-1)
+
