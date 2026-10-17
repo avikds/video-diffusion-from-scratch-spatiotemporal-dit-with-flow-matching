@@ -686,3 +686,11 @@ def flow_matching_loss(model, x1, y, t, x0, gen=None):
     # Compute the mean squared error over all batch and video elements.
     return F.mse_loss(prediction, v)
 
+# Step 17 - ema_update
+def ema_update(ema, model, decay):
+    # Update EMA parameters in place without building a computation graph.
+    with torch.no_grad():
+        for p_ema, p_model in zip(ema.parameters(), model.parameters()):
+            # p_ema = decay * p_ema + (1 - decay) * p_model
+            p_ema.mul_(decay).add_(p_model, alpha=1.0 - decay)
+
