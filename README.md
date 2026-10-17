@@ -48,8 +48,6 @@ python scaffold.py
    54 space-time tokens of 16 pixels; full attention scores 2916 pairs, factorized 810 (3.6x cheaper)
    at 16 frames x 1024 patches the saving is 16x
    VideoDiT d=64, depth=2, heads=4: 226960 parameters; adaLN-Zero makes it the identity at init
-C:\Users\avikd\AppData\Roaming\Python\Python314\site-packages\triton\windows_utils.py:465: UserWarning: Failed to find CUDA. Install CUDA Toolkit (https://developer.nvidia.com/cuda-downloads) or set CUDA_HOME / CUDA_PATH environment variable.
-  warnings.warn("Failed to find CUDA."
 
 3. Training (1200 steps, batch 64, logit-normal times, EMA 0.99)
    full model:    loss 1.385 -> 0.063 (226960 params)
