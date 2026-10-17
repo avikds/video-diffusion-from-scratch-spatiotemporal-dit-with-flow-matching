@@ -539,3 +539,28 @@ class DiTBlock(nn.Module):
 
         return x
 
+# Step 12 - FinalLayer
+class FinalLayer(nn.Module):
+    def __init__(self, d, out_dim):
+        super().__init__()
+
+        # Normalize tokens without learnable affine parameters.
+        self.norm = nn.LayerNorm(d, elementwise_affine=False)
+
+        # Generate shift and scale vectors from the conditioning.
+        self.ada = AdaLNModulation(d, 2)
+
+        # Project each token to its patch-pixel values.
+        self.lin = nn.Linear(d, out_dim)
+
+        # Zero-initialize the final projection's weight and bias.
+        nn.init.zeros_(self.lin.weight)
+        nn.init.zeros_(self.lin.bias)
+
+    def forward(self, x, c):
+        # Generate the conditioning-dependent shift and scale.
+        shift, scale = self.ada(c)
+
+        # Apply normalization, adaptive modulation, and projection.
+        return self.lin(modulate(self.norm(x), shift, scale))
+

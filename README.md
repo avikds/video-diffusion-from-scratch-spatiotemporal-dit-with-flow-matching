@@ -21,6 +21,7 @@ python scaffold.py
 - [x] **9.** attend_spatial
 - [x] **10.** modulate
 - [x] **11.** DiTBlock
+- [x] **12.** FinalLayer
 
 ---
 
