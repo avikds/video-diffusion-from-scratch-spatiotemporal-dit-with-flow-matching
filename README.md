@@ -30,6 +30,7 @@ python scaffold.py
 - [x] **18.** train_video_dit
 - [x] **19.** cfg_velocity
 - [x] **20.** euler_sample
+- [x] **21.** sample_from_first_frame
 
 ---
 

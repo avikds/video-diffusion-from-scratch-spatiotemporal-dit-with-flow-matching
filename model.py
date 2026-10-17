@@ -812,3 +812,54 @@ def euler_sample(model, y, steps, scale, gen):
 
     return x
 
+# Step 21 - sample_from_first_frame
+@torch.no_grad()
+def sample_from_first_frame(model, first, y, steps, scale, gen):
+    # Disable training-time behavior such as classifier-free label dropout.
+    model.eval()
+
+    # Determine the batch size.
+    n = y.shape[0]
+
+    # Draw initial Gaussian noise and preserve it for the interpolation.
+    # Shape: (n, 1, T, H, W)
+    x0 = torch.randn(
+        n, 1, T, H, W,
+        generator=gen,
+    )
+
+    # Start the sampling trajectory from the initial noise.
+    x = x0.clone()
+
+    # Create the integration time grid from noise (t=0) to data (t=1).
+    ts = torch.linspace(0.0, 1.0, steps + 1)
+
+    # Integrate the velocity field using Euler's method.
+    for i in range(steps):
+        t = ts[i]
+
+        # Clamp the first frame to the noise-to-image interpolant:
+        # at t=0 it is initial noise; at t=1 it becomes the given image.
+        x[:, :, 0] = (
+            (1.0 - t) * x0[:, :, 0]
+            + t * first
+        )
+
+        # Predict the classifier-free-guided velocity.
+        v = cfg_velocity(
+            model,
+            x,
+            t.expand(n),
+            y,
+            scale,
+        )
+
+        # Take one Euler integration step.
+        dt = ts[i + 1] - ts[i]
+        x = x + dt * v
+
+    # Ensure the first frame matches the given image exactly.
+    x[:, :, 0] = first
+
+    return x
+
