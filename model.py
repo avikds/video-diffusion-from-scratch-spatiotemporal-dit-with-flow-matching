@@ -779,3 +779,36 @@ def cfg_velocity(model, x, t, y, scale):
     # Apply classifier-free guidance.
     return v_uncond + scale * (v_cond - v_uncond)
 
+# Step 20 - euler_sample
+@torch.no_grad()
+def euler_sample(model, y, steps, scale, gen):
+    # Use evaluation mode to disable training-time label dropout.
+    model.eval()
+
+    # Number of videos to generate.
+    n = y.shape[0]
+
+    # Initialize the video state with Gaussian noise.
+    # Shape: (n, 1, T, H, W)
+    x = torch.randn(
+        n, 1, T, H, W,
+        generator=gen,
+    )
+
+    # Create a time grid from noise (t=0) to data (t=1).
+    ts = torch.linspace(0.0, 1.0, steps + 1)
+
+    # Integrate the learned velocity field using Euler's method.
+    for i in range(steps):
+        # Expand the scalar timestep to one value per video.
+        t = ts[i].expand(n)
+
+        # Predict the classifier-free-guided velocity.
+        v = cfg_velocity(model, x, t, y, scale)
+
+        # Euler update: x(t + dt) = x(t) + dt * v(x(t), t).
+        dt = ts[i + 1] - ts[i]
+        x = x + dt * v
+
+    return x
+

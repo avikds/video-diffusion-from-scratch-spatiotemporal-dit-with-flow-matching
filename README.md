@@ -29,6 +29,7 @@ python scaffold.py
 - [x] **17.** ema_update
 - [x] **18.** train_video_dit
 - [x] **19.** cfg_velocity
+- [x] **20.** euler_sample
 
 ---
 
