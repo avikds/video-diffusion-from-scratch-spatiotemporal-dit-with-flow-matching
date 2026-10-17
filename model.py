@@ -363,3 +363,69 @@ class Attention(nn.Module):
         # Final output projection.
         return self.proj(out)
 
+# Step 9 - attend_spatial
+def attend_spatial(attn, x, T, S):
+    # Input shape: (B, T * S, d)
+    B, _, d = x.shape
+
+    # Group tokens by frame so each frame attends independently.
+    # Shape: (B, T, S, d) -> (B * T, S, d)
+    x = x.reshape(B, T, S, d)
+    x = x.reshape(B * T, S, d)
+
+    # Apply self-attention across the S spatial tokens of each frame.
+    x = attn(x)
+
+    # Restore frame-major token order.
+    # Shape: (B * T, S, d) -> (B, T * S, d)
+    x = x.reshape(B, T, S, d)
+    x = x.reshape(B, T * S, d)
+
+    return x
+
+
+def attend_temporal(attn, x, T, S):
+    # Input shape: (B, T * S, d)
+    B, _, d = x.shape
+
+    # Restore the space-time grid.
+    # Shape: (B, T * S, d) -> (B, T, S, d)
+    x = x.reshape(B, T, S, d)
+
+    # Group tokens by spatial location across all frames.
+    # Shape: (B, T, S, d) -> (B, S, T, d)
+    x = x.permute(0, 2, 1, 3)
+
+    # Treat each spatial location as an independent sequence.
+    # Shape: (B, S, T, d) -> (B * S, T, d)
+    x = x.reshape(B * S, T, d)
+
+    # Apply self-attention across the T frames at each location.
+    x = attn(x)
+
+    # Restore the batch and spatial dimensions.
+    # Shape: (B * S, T, d) -> (B, S, T, d)
+    x = x.reshape(B, S, T, d)
+
+    # Return to frame-major order.
+    # Shape: (B, S, T, d) -> (B, T, S, d)
+    x = x.permute(0, 2, 1, 3)
+
+    # Flatten the space-time grid back into a token sequence.
+    # Output shape: (B, T * S, d)
+    x = x.reshape(B, T * S, d)
+
+    return x
+
+
+def attention_cost(T, S):
+    # Full attention computes scores between every pair of T * S tokens.
+    full = (T * S) ** 2
+
+    # Factorized attention:
+    # Spatial: T frames, each with S spatial tokens.
+    # Temporal: S spatial locations, each spanning T frames.
+    factorized = T * S * S + S * T * T
+
+    return (full, factorized)
+

@@ -18,6 +18,7 @@ python scaffold.py
 - [x] **6.** TimestepEmbedder
 - [x] **7.** LabelEmbedder
 - [x] **8.** Attention
+- [x] **9.** attend_spatial
 
 ---
 
