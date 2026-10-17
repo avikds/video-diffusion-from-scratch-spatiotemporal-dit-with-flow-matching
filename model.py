@@ -644,3 +644,20 @@ class VideoDiT(nn.Module):
             C=1,
         )
 
+# Step 14 - sample_timesteps
+def sample_timesteps(n, gen, mode="uniform"):
+    if mode == "uniform":
+        # Sample timesteps uniformly from [0, 1).
+        return torch.rand(n, generator=gen)
+
+    elif mode == "logit":
+        # Sample from a standard normal distribution, then apply sigmoid.
+        # This concentrates more samples around t = 0.5.
+        z = torch.randn(n, generator=gen)
+        return torch.sigmoid(z)
+
+    else:
+        raise ValueError(
+            f"Unsupported timestep sampling mode: {mode}"
+        )
+

@@ -23,6 +23,7 @@ python scaffold.py
 - [x] **11.** DiTBlock
 - [x] **12.** FinalLayer
 - [x] **13.** VideoDiT
+- [x] **14.** sample_timesteps
 
 ---
 
