@@ -311,3 +311,55 @@ class LabelEmbedder(nn.Module):
         # Return label embeddings of shape (B, d).
         return self.table(y)
 
+# Step 8 - Attention
+class Attention(nn.Module):
+    def __init__(self, d, heads):
+        super().__init__()
+
+        # Store the number of attention heads.
+        self.heads = heads
+
+        # Project each token into queries, keys, and values.
+        self.qkv = nn.Linear(d, 3 * d)
+
+        # Project the concatenated attention heads back to dimension d.
+        self.proj = nn.Linear(d, d)
+
+    def forward(self, x):
+        # Input shape: (B, N, d)
+        B, N, d = x.shape
+
+        # Compute queries, keys, and values.
+        # Shape: (B, N, 3 * d)
+        qkv = self.qkv(x)
+
+        # Split into heads:
+        # Shape: (B, N, 3, heads, head_dim)
+        head_dim = d // self.heads
+        qkv = qkv.reshape(B, N, 3, self.heads, head_dim)
+
+        # Rearrange to (3, B, heads, N, head_dim).
+        qkv = qkv.permute(2, 0, 3, 1, 4)
+
+        # Extract queries, keys, and values.
+        q, k, v = qkv.unbind(0)
+
+        # Scaled dot-product attention.
+        # Attention scores have shape (B, heads, N, N).
+        scale = math.sqrt(head_dim)
+        attn = (q @ k.transpose(-2, -1)) / scale
+
+        # Normalize attention weights over the key-token dimension.
+        attn = attn.softmax(dim=-1)
+
+        # Apply attention weights to the values.
+        # Shape: (B, heads, N, head_dim)
+        out = attn @ v
+
+        # Merge the heads back into the embedding dimension.
+        # Shape: (B, N, d)
+        out = out.transpose(1, 2).reshape(B, N, d)
+
+        # Final output projection.
+        return self.proj(out)
+
