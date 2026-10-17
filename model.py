@@ -280,3 +280,34 @@ class TimestepEmbedder(nn.Module):
         # Return timestep conditioning vectors of shape (B, d).
         return self.mlp(t_freq)
 
+# Step 7 - LabelEmbedder
+class LabelEmbedder(nn.Module):
+    def __init__(self, num_classes, d, drop_prob):
+        super().__init__()
+
+        # Store the number of conditional classes and dropout probability.
+        self.num_classes = num_classes
+        self.drop_prob = drop_prob
+
+        # Reserve an additional class index for unconditional generation.
+        # The null class has index num_classes.
+        self.table = nn.Embedding(num_classes + 1, d)
+
+    def forward(self, y, gen=None):
+        # Apply classifier-free label dropout only during training.
+        if self.training and self.drop_prob > 0:
+            # Independently decide whether to drop each label.
+            drop_mask = (
+                torch.rand(y.shape[0], generator=gen) < self.drop_prob
+            )
+
+            # Replace dropped labels with the null-class index.
+            y = torch.where(
+                drop_mask.to(y.device),
+                torch.full_like(y, self.num_classes),
+                y,
+            )
+
+        # Return label embeddings of shape (B, d).
+        return self.table(y)
+

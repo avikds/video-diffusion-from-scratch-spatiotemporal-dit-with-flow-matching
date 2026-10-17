@@ -16,6 +16,7 @@ python scaffold.py
 - [x] **4.** patchify
 - [x] **5.** pos_embed
 - [x] **6.** TimestepEmbedder
+- [x] **7.** LabelEmbedder
 
 ---
 
