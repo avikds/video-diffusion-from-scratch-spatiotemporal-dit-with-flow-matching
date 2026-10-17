@@ -936,3 +936,94 @@ def evaluate_samples(samples, labels):
         "shape": round(float(shape), 4),
     }
 
+# Step 23 - frechet_distance
+class ClipFeatures(nn.Module):
+    def __init__(self, seed=0, dim=32):
+        super().__init__()
+
+        # Build the 3D convolutional feature extractor.
+        self.c1 = nn.Conv3d(
+            1, 8, kernel_size=3, stride=2, padding=1
+        )
+        self.c2 = nn.Conv3d(
+            8, 16, kernel_size=3, stride=2, padding=1
+        )
+
+        # For an input video of shape (1, 6, 12, 12):
+        # First convolution: (8, 3, 6, 6)
+        # Second convolution: (16, 2, 3, 3)
+        # Flattened feature dimension: 16 * 2 * 3 * 3 = 288.
+        self.lin = nn.Linear(16 * 2 * 3 * 3, dim)
+
+        # Reinitialize all parameters deterministically using the given seed.
+        g = torch.Generator().manual_seed(seed)
+
+        with torch.no_grad():
+            for p in self.parameters():
+                if p.ndim > 1:
+                    # Initialize weights using the specified fan-in scaling.
+                    p.copy_(
+                        torch.randn(p.shape, generator=g, dtype=p.dtype)
+                        / math.sqrt(p[0].numel())
+                    )
+                else:
+                    # Initialize all biases to zero.
+                    p.zero_()
+
+                # Freeze the feature extractor.
+                p.requires_grad_(False)
+
+    def forward(self, x):
+        # Extract spatiotemporal features using two convolutional layers.
+        x = F.relu(self.c1(x))
+        x = F.relu(self.c2(x))
+
+        # Flatten the feature maps and project to the feature dimension.
+        x = x.flatten(start_dim=1)
+        return self.lin(x)
+
+
+def frechet_distance(f1, f2):
+    # Calculate the feature means.
+    mu1 = f1.mean(dim=0)
+    mu2 = f2.mean(dim=0)
+
+    # Estimate the covariance matrices across samples.
+    c1 = torch.cov(f1.T)
+    c2 = torch.cov(f2.T)
+
+    # Compute the symmetric positive-semidefinite square root of c1.
+    eigvals1, eigvecs1 = torch.linalg.eigh(c1)
+    sqrt_eigvals1 = torch.sqrt(eigvals1.clamp_min(0.0))
+
+    s1 = (
+        eigvecs1
+        @ torch.diag(sqrt_eigvals1)
+        @ eigvecs1.T
+    )
+
+    # Compute the symmetric matrix s1 @ c2 @ s1.
+    middle = s1 @ c2 @ s1
+    middle = 0.5 * (middle + middle.T)
+
+    # The trace of the square root equals the sum of square roots
+    # of the eigenvalues, with negative roundoff values clamped to zero.
+    eigvals_middle = torch.linalg.eigvalsh(middle)
+    tr_sqrt = torch.sqrt(
+        eigvals_middle.clamp_min(0.0)
+    ).sum()
+
+    # Squared distance between the means.
+    mean_term = (mu1 - mu2).square().sum()
+
+    # Fréchet (Wasserstein-2) distance between the fitted Gaussians.
+    distance = (
+        mean_term
+        + torch.trace(c1)
+        + torch.trace(c2)
+        - 2.0 * tr_sqrt
+    )
+
+    # Prevent small numerical errors from yielding a negative distance.
+    return float(distance.clamp_min(0.0).item())
+
