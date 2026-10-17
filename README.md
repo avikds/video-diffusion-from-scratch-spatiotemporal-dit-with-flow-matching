@@ -34,6 +34,7 @@ python scaffold.py
 - [x] **22.** evaluate_samples
 - [x] **23.** frechet_distance
 - [x] **24.** train_variant
+- [x] **25.** video_experiment
 
 ---
 

@@ -1084,3 +1084,114 @@ def train_variant(
         "params": params,
     }
 
+# Step 25 - video_experiment
+def video_experiment(
+    seed=0,
+    train_steps=1200,
+    n_eval=128,
+    euler_steps=16,
+    cfg_scale=2.0,
+):
+    # Build the fixed feature extractor once for all evaluations.
+    feat = ClipFeatures()
+    feat.eval()
+
+    # Generate a shared real-video batch for the comparison.
+    real, real_labels = make_batch(
+        torch.Generator().manual_seed(seed + 3),
+        n_eval,
+    )
+    real_features = feat(real)
+
+    # Use a balanced set of motion labels for conditional generation.
+    labels = torch.arange(8).repeat(n_eval // 8)
+
+    results = {}
+
+    # Compare the full model first, then the spatial-only ablation.
+    for temporal in (True, False):
+        # Train the selected model variant.
+        run = train_variant(temporal, train_steps, seed)
+        model_ema = run["ema"]
+
+        # Generate conditionally guided samples.
+        cond = euler_sample(
+            model_ema,
+            labels,
+            euler_steps,
+            cfg_scale,
+            torch.Generator().manual_seed(seed + 1),
+        )
+
+        # Generate samples without additional classifier-free guidance.
+        plain = euler_sample(
+            model_ema,
+            labels,
+            euler_steps,
+            1.0,
+            torch.Generator().manual_seed(seed + 1),
+        )
+
+        # Generate videos conditioned on the first frame of real clips.
+        i2v = sample_from_first_frame(
+            model_ema,
+            real[:, :, 0],
+            real_labels,
+            euler_steps,
+            cfg_scale,
+            torch.Generator().manual_seed(seed + 2),
+        )
+
+        # Compare the generated conditional distribution with real clips.
+        fd = frechet_distance(real_features, feat(cond))
+
+        # Summarize the training-loss history.
+        losses = run["losses"]
+        first_losses = losses[:20]
+        last_losses = losses[-100:]
+
+        loss_first = (
+            sum(first_losses) / len(first_losses)
+            if first_losses else 0.0
+        )
+        loss_last = (
+            sum(last_losses) / len(last_losses)
+            if last_losses else 0.0
+        )
+
+        # Store the metrics for this variant.
+        key = "full" if temporal else "spatial_only"
+
+        results[key] = {
+            "params": run["params"],
+            "loss_first": float(loss_first),
+            "loss_last": float(loss_last),
+            "cond": evaluate_samples(cond, labels),
+            "plain": evaluate_samples(plain, labels),
+            "i2v": evaluate_samples(i2v, real_labels),
+            "fd": round(float(fd), 4),
+        }
+
+    # Estimate a reference Fréchet distance using a second real batch.
+    real_second, _ = make_batch(
+        torch.Generator().manual_seed(seed + 4),
+        n_eval,
+    )
+    fd_floor = frechet_distance(
+        real_features,
+        feat(real_second),
+    )
+
+    # Return the complete experiment report.
+    return {
+        "full": results["full"],
+        "spatial_only": results["spatial_only"],
+        "fd_floor": round(float(fd_floor), 4),
+        "cfg": {
+            "train_steps": train_steps,
+            "n_eval": n_eval,
+            "euler_steps": euler_steps,
+            "cfg_scale": cfg_scale,
+        },
+    }
+
