@@ -661,3 +661,16 @@ def sample_timesteps(n, gen, mode="uniform"):
             f"Unsupported timestep sampling mode: {mode}"
         )
 
+# Step 15 - flow_interpolant
+def flow_interpolant(x1, x0, t):
+    # Broadcast each timestep across the channel, frame, height, and width axes.
+    t = t.view(-1, 1, 1, 1, 1)
+
+    # Interpolate along the straight path from Gaussian noise x0 to data x1.
+    x_t = (1.0 - t) * x0 + t * x1
+
+    # The velocity along this straight path is constant with respect to time.
+    v = x1 - x0
+
+    return x_t, v
+

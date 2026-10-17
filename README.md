@@ -24,6 +24,7 @@ python scaffold.py
 - [x] **12.** FinalLayer
 - [x] **13.** VideoDiT
 - [x] **14.** sample_timesteps
+- [x] **15.** flow_interpolant
 
 ---
 
