@@ -12,6 +12,7 @@ python scaffold.py
 
 - [x] **1.** make_clip
 - [x] **2.** make_batch
+- [x] **3.** clip_velocity
 
 ---
 

@@ -84,3 +84,68 @@ def make_batch(gen, n):
 
     return clips, labels
 
+# Step 3 - clip_velocity
+def clip_velocity(clip):
+    # Accept either (T, H, W) or (1, T, H, W).
+    if clip.ndim == 4:
+        if clip.shape[0] != 1:
+            raise ValueError("A 4D clip must have shape (1, T, H, W).")
+        clip = clip.squeeze(0)
+    elif clip.ndim != 3:
+        raise ValueError("Clip must have shape (T, H, W) or (1, T, H, W).")
+
+    # Compute the centroid (cx, cy) of the bright pixels in each frame.
+    centroids = []
+
+    for frame in clip:
+        rows, cols = torch.where(frame > 0)
+
+        if rows.numel() == 0:
+            # This frame contains no bright pixels.
+            centroids.append(None)
+        else:
+            cx = cols.float().mean().item()
+            cy = rows.float().mean().item()
+            centroids.append((cx, cy))
+
+    # Compute displacements only between adjacent frames
+    # when both frames have valid centroids.
+    displacements = []
+
+    for i in range(len(centroids) - 1):
+        previous = centroids[i]
+        current = centroids[i + 1]
+
+        if previous is not None and current is not None:
+            step_x = current[0] - previous[0]
+            step_y = current[1] - previous[1]
+            displacements.append((step_x, step_y))
+
+    # No valid consecutive frame pair means no measurable motion.
+    if not displacements:
+        return (0.0, 0.0, 0.0)
+
+    # Mean displacement across valid consecutive frame pairs.
+    dx = sum(step[0] for step in displacements) / len(displacements)
+    dy = sum(step[1] for step in displacements) / len(displacements)
+
+    # Mean absolute deviation from the average velocity.
+    jitter = sum(
+        abs(step_x - dx) + abs(step_y - dy)
+        for step_x, step_y in displacements
+    ) / len(displacements)
+
+    return (float(dx), float(dy), float(jitter))
+
+
+def direction_index(dx, dy):
+    # Find the direction with minimum squared Euclidean distance.
+    # min() preserves the lowest index when distances are tied.
+    return min(
+        range(len(DIRECTIONS)),
+        key=lambda i: (
+            (DIRECTIONS[i][0] - dx) ** 2
+            + (DIRECTIONS[i][1] - dy) ** 2
+        )
+    )
+
