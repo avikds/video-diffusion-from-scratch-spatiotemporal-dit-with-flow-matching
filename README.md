@@ -22,6 +22,7 @@ python scaffold.py
 - [x] **10.** modulate
 - [x] **11.** DiTBlock
 - [x] **12.** FinalLayer
+- [x] **13.** VideoDiT
 
 ---
 

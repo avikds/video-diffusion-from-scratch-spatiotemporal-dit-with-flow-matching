@@ -564,3 +564,83 @@ class FinalLayer(nn.Module):
         # Apply normalization, adaptive modulation, and projection.
         return self.lin(modulate(self.norm(x), shift, scale))
 
+# Step 13 - VideoDiT
+class VideoDiT(nn.Module):
+    def __init__(
+        self,
+        d=64,
+        depth=2,
+        heads=4,
+        p=4,
+        num_classes=8,
+        drop_prob=0.1,
+        temporal=True,
+    ):
+        super().__init__()
+
+        # Store the patch size and space-time grid dimensions.
+        self.p = p
+        self.T, self.Hp, self.Wp = T, H // p, W // p
+
+        # 1. Embed flattened single-channel spatial patches into d dimensions.
+        self.embed = nn.Linear(p * p, d)
+
+        # 2. Register fixed space-time positional embeddings as a buffer.
+        # This tensor moves with the model but is not a trainable parameter.
+        self.register_buffer(
+            "pos",
+            pos_embed(self.T, self.Hp, self.Wp, d),
+        )
+
+        # 3. Embed continuous flow timesteps.
+        self.t_emb = TimestepEmbedder(d)
+
+        # 4. Embed motion labels, including the unconditional null class.
+        self.y_emb = LabelEmbedder(num_classes, d, drop_prob)
+
+        # 5. Construct the transformer blocks.
+        # Setting temporal=False enables the spatial-only ablation.
+        self.blocks = nn.ModuleList(
+            [
+                DiTBlock(d, heads, temporal=temporal)
+                for _ in range(depth)
+            ]
+        )
+
+        # 6. Project each token back to its p x p pixel values.
+        # The output projection is zero-initialized in FinalLayer.
+        self.final = FinalLayer(d, p * p)
+
+    def forward(self, x, t, y, gen=None):
+        # x: (B, 1, T, H, W)
+        # t: (B,)
+        # y: (B,)
+
+        # Convert the video into a sequence of flattened spatial patches.
+        tokens = patchify(x, self.p)
+
+        # Embed patches and add fixed positional information.
+        tokens = self.embed(tokens) + self.pos.unsqueeze(0)
+
+        # Combine timestep and motion-label conditioning.
+        c = self.t_emb(t) + self.y_emb(y, gen)
+
+        # Apply spatial attention, temporal attention (if enabled),
+        # and the feed-forward network in each DiT block.
+        S = self.Hp * self.Wp
+        for block in self.blocks:
+            tokens = block(tokens, c, self.T, S)
+
+        # Predict the flattened patch values of the velocity field.
+        tokens = self.final(tokens, c)
+
+        # Reconstruct the video-shaped velocity field.
+        return unpatchify(
+            tokens,
+            self.T,
+            H,
+            W,
+            self.p,
+            C=1,
+        )
+
