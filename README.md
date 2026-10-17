@@ -20,6 +20,7 @@ python scaffold.py
 - [x] **8.** Attention
 - [x] **9.** attend_spatial
 - [x] **10.** modulate
+- [x] **11.** DiTBlock
 
 ---
 

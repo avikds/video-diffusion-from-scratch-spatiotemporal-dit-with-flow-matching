@@ -465,3 +465,77 @@ class AdaLNModulation(nn.Module):
         # Split along the feature dimension into n chunks.
         return out.chunk(self.n, dim=-1)
 
+# Step 11 - DiTBlock
+class DiTBlock(nn.Module):
+    def __init__(self, d, heads, mlp_ratio=4, temporal=True):
+        super().__init__()
+
+        # Store whether temporal attention is enabled.
+        self.temporal = temporal
+
+        # 1. Normalization before spatial attention.
+        self.norm1 = nn.LayerNorm(d, elementwise_affine=False)
+
+        # 2. Spatial self-attention within each frame.
+        self.attn_s = Attention(d, heads)
+
+        # 3. Normalization before temporal attention.
+        self.norm2 = nn.LayerNorm(d, elementwise_affine=False)
+
+        # 4. Temporal self-attention across frames, if enabled.
+        self.attn_t = Attention(d, heads) if temporal else None
+
+        # 5. Normalization before the feed-forward network.
+        self.norm3 = nn.LayerNorm(d, elementwise_affine=False)
+
+        # 6. Feed-forward MLP.
+        self.mlp = nn.Sequential(
+            nn.Linear(d, mlp_ratio * d),
+            nn.GELU(),
+            nn.Linear(mlp_ratio * d, d),
+        )
+
+        # 7. Generate nine adaLN-Zero conditioning vectors:
+        # (shift1, scale1, gate1, shift2, scale2, gate2,
+        #  shift3, scale3, gate3).
+        self.ada = AdaLNModulation(d, 9)
+
+    def forward(self, x, c, T, S):
+        # x: (B, T * S, d)
+        # c: (B, d)
+
+        # Split the conditioning output into nine vectors.
+        (
+            shift1, scale1, gate1,
+            shift2, scale2, gate2,
+            shift3, scale3, gate3,
+        ) = self.ada(c)
+
+        # Spatial attention: each frame attends to its own spatial tokens.
+        spatial_input = modulate(
+            self.norm1(x), shift1, scale1
+        )
+        spatial_output = attend_spatial(
+            self.attn_s, spatial_input, T, S
+        )
+        x = x + gate1[:, None, :] * spatial_output
+
+        # Temporal attention: each spatial location attends across frames.
+        if self.temporal:
+            temporal_input = modulate(
+                self.norm2(x), shift2, scale2
+            )
+            temporal_output = attend_temporal(
+                self.attn_t, temporal_input, T, S
+            )
+            x = x + gate2[:, None, :] * temporal_output
+
+        # Feed-forward MLP with adaptive normalization and a gated residual.
+        mlp_input = modulate(
+            self.norm3(x), shift3, scale3
+        )
+        mlp_output = self.mlp(mlp_input)
+        x = x + gate3[:, None, :] * mlp_output
+
+        return x
+
