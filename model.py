@@ -149,3 +149,51 @@ def direction_index(dx, dy):
         )
     )
 
+# Step 4 - patchify
+def patchify(video, p):
+    # Input shape: (B, C, T, H, W)
+    B, C, T, H, W = video.shape
+
+    # Number of patches along the height and width.
+    Hp = H // p
+    Wp = W // p
+
+    # Split each frame into non-overlapping p x p patches.
+    # Shape: (B, C, T, Hp, p, Wp, p)
+    video = video.reshape(B, C, T, Hp, p, Wp, p)
+
+    # Reorder dimensions to:
+    # (B, T, Hp, Wp, C, p, p)
+    # This preserves frame-major and row-major patch ordering.
+    video = video.permute(0, 2, 3, 5, 1, 4, 6)
+
+    # Flatten the patch grid into a token sequence and
+    # flatten each patch's (C, p, p) values into one token.
+    # Output shape: (B, T * Hp * Wp, C * p * p)
+    tokens = video.reshape(B, T * Hp * Wp, C * p * p)
+
+    return tokens
+
+
+def unpatchify(tokens, T, H, W, p, C):
+    # Input shape: (B, T * Hp * Wp, C * p * p)
+    B = tokens.shape[0]
+
+    # Number of patches along the height and width.
+    Hp = H // p
+    Wp = W // p
+
+    # Restore the patch grid and individual patch dimensions.
+    # Shape: (B, T, Hp, Wp, C, p, p)
+    video = tokens.reshape(B, T, Hp, Wp, C, p, p)
+
+    # Restore the original channel-first video layout:
+    # (B, C, T, Hp, p, Wp, p)
+    video = video.permute(0, 4, 1, 2, 5, 3, 6)
+
+    # Merge the patch-grid and within-patch dimensions.
+    # Output shape: (B, C, T, H, W)
+    video = video.reshape(B, C, T, H, W)
+
+    return video
+
