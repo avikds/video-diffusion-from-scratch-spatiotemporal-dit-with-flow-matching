@@ -11,6 +11,7 @@ python scaffold.py
 ## Steps
 
 - [x] **1.** make_clip
+- [x] **2.** make_batch
 
 ---
 

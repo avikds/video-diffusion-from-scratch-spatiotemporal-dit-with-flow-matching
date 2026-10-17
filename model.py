@@ -68,3 +68,19 @@ def make_clip(gen, direction):
 
     return clip
 
+# Step 2 - make_batch
+def make_batch(gen, n):
+    # Sample all direction labels first, using the supplied generator.
+    labels = torch.randint(0, 8, (n,), generator=gen)
+
+    # Generate clips sequentially in the same order as their labels.
+    clips = torch.stack(
+        [make_clip(gen, int(label)) for label in labels],
+        dim=0
+    )
+
+    # Add the channel dimension: (n, T, H, W) -> (n, 1, T, H, W).
+    clips = clips.unsqueeze(1)
+
+    return clips, labels
+
