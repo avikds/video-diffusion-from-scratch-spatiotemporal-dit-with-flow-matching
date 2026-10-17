@@ -694,3 +694,63 @@ def ema_update(ema, model, decay):
             # p_ema = decay * p_ema + (1 - decay) * p_model
             p_ema.mul_(decay).add_(p_model, alpha=1.0 - decay)
 
+# Step 18 - train_video_dit
+def train_video_dit(
+    model,
+    ema,
+    steps,
+    batch,
+    lr,
+    seed,
+    t_mode="logit",
+    ema_decay=0.99,
+):
+    # Create a seeded generator for reproducible training randomness.
+    gen = torch.Generator().manual_seed(seed)
+
+    # Initialize the AdamW optimizer with no weight decay.
+    opt = torch.optim.AdamW(
+        model.parameters(),
+        lr=lr,
+        weight_decay=0.0,
+    )
+
+    # Enable training mode.
+    model.train()
+
+    # Store the loss from each optimization step as a Python float.
+    losses = []
+
+    for _ in range(steps):
+        # 1. Generate a batch of synthetic videos and motion labels.
+        x1, y = make_batch(gen, batch)
+
+        # 2. Sample Gaussian noise with the same shape as the videos.
+        x0 = torch.randn(x1.shape, generator=gen)
+
+        # 3. Sample flow timesteps using the requested distribution.
+        t = sample_timesteps(batch, gen, t_mode)
+
+        # 4. Compute the flow-matching velocity prediction loss.
+        loss = flow_matching_loss(
+            model, x1, y, t, x0, gen
+        )
+
+        # 5. Clear gradients from the previous optimization step.
+        opt.zero_grad()
+
+        # 6. Backpropagate the loss.
+        loss.backward()
+
+        # 7. Update the model parameters.
+        opt.step()
+
+        # 8. Update EMA weights when an EMA model is provided.
+        if ema is not None:
+            ema_update(ema, model, ema_decay)
+
+        # Record the loss as a Python float.
+        losses.append(float(loss.detach().item()))
+
+    return losses
+

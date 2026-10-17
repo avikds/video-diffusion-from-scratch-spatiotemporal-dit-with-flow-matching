@@ -27,6 +27,7 @@ python scaffold.py
 - [x] **15.** flow_interpolant
 - [x] **16.** flow_matching_loss
 - [x] **17.** ema_update
+- [x] **18.** train_video_dit
 
 ---
 
