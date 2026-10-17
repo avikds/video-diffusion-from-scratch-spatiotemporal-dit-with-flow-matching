@@ -254,3 +254,29 @@ def pos_embed(T, Hp, Wp, d):
     # Flatten in frame-major, row-major order to match patchify().
     return embeddings.reshape(T * Hp * Wp, d)
 
+# Step 6 - TimestepEmbedder
+import torch.nn as nn
+
+
+class TimestepEmbedder(nn.Module):
+    def __init__(self, d, freq_dim=64):
+        super().__init__()
+
+        # Store the dimension of the sinusoidal timestep features.
+        self.freq_dim = freq_dim
+
+        # Project sinusoidal features into the model dimension.
+        self.mlp = nn.Sequential(
+            nn.Linear(self.freq_dim, d),
+            nn.SiLU(),
+            nn.Linear(d, d),
+        )
+
+    def forward(self, t):
+        # Scale flow times from [0, 1] to [0, 1000].
+        # Use the sinusoidal embedding function from Step 5.
+        t_freq = sincos_1d(t * 1000.0, self.freq_dim)
+
+        # Return timestep conditioning vectors of shape (B, d).
+        return self.mlp(t_freq)
+

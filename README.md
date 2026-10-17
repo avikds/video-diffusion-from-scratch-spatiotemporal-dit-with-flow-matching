@@ -15,6 +15,7 @@ python scaffold.py
 - [x] **3.** clip_velocity
 - [x] **4.** patchify
 - [x] **5.** pos_embed
+- [x] **6.** TimestepEmbedder
 
 ---
 
