@@ -1027,3 +1027,60 @@ def frechet_distance(f1, f2):
     # Prevent small numerical errors from yielding a negative distance.
     return float(distance.clamp_min(0.0).item())
 
+# Step 24 - train_variant
+def train_variant(
+    temporal,
+    steps,
+    seed,
+    d=64,
+    depth=2,
+    heads=4,
+    batch=64,
+    lr=3e-3,
+):
+    # Seed PyTorch before constructing either model.
+    torch.manual_seed(seed)
+
+    # Construct the live model and its EMA copy with identical settings.
+    model = VideoDiT(
+        d=d,
+        depth=depth,
+        heads=heads,
+        temporal=temporal,
+    )
+
+    ema = VideoDiT(
+        d=d,
+        depth=depth,
+        heads=heads,
+        temporal=temporal,
+    )
+
+    # Initialize EMA with exactly the same state as the live model.
+    ema.load_state_dict(model.state_dict())
+
+    # Train the live model and update EMA throughout training.
+    losses = train_video_dit(
+        model=model,
+        ema=ema,
+        steps=steps,
+        batch=batch,
+        lr=lr,
+        seed=seed,
+    )
+
+    # The EMA model is intended for inference and evaluation.
+    ema.eval()
+
+    # Count trainable model parameters.
+    params = sum(p.numel() for p in model.parameters())
+
+    # Return the complete reproducible training artifact.
+    return {
+        "ema": ema,
+        "model": model,
+        "losses": losses,
+        "temporal": temporal,
+        "params": params,
+    }
+
